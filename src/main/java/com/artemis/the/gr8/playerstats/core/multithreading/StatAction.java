@@ -202,21 +202,30 @@ final class StatAction extends RecursiveTask<ConcurrentHashMap<String, Integer>>
 
         String killFilter = requestSettings.getKillFilterType();
         boolean isTotalRequest = bukkitStat.isTotalBukkitRequest(); // Check if this is a total request
+        Statistic statEnum = !bukkitStat.getBukkitComponents().isEmpty() ? bukkitStat.getBukkitComponents().get(0).statistic() : null;
         int totalValue = 0;
 
         for (ApprovedStat.StatComponent component : bukkitStat.getBukkitComponents()) {
             try {
                 // Logic for handling total/filtered requests (e.g., total blocks mined, filtered kills)
                 if (isTotalRequest) {
-                    if (component.statistic() == Statistic.KILL_ENTITY && killFilter != null) {
+                    if (statEnum == Statistic.KILL_ENTITY && killFilter != null) {
                         totalValue += calculateFilteredEntityKills(player, component.statistic(), killFilter);
+                    } else if (statEnum == Statistic.MINE_BLOCK) {
+                        totalValue += calculateTotalBlocksMined(player);
+                    } else if (statEnum == Statistic.CRAFT_ITEM) {
+                        totalValue += calculateTotalItemsCrafted(player);
                     } else {
-                        try {
-                            totalValue += player.getStatistic(component.statistic());
-                            // Note: Getting total for MINE_BLOCK or CRAFT_ITEM this way might sum across all sub-types.
-                            // This is the desired behavior for /top mined and /top craft (total).
-                        } catch (IllegalArgumentException e) {
-                            MyLogger.logWarning("Could not get total for typed statistic '" + component.statistic() + "' using UNTYPED call for player " + player.getName() + ": " + e.getMessage());
+                        // Fallback/Error: Untyped stat marked as total request?
+                        // Or an unhandled typed statistic total? Use the direct untyped call if possible.
+                        if (statEnum != null && statEnum.getType() == Statistic.Type.UNTYPED) {
+                            try {
+                                totalValue += player.getStatistic(statEnum);
+                            } catch (Exception e) {
+                                MyLogger.logWarning("Error getting untyped total stat '" + statEnum + "' for player " + player.getName());
+                            }
+                        } else {
+                            MyLogger.logWarning("Unhandled total request for statistic: " + statEnum + " for player " + player.getName());
                         }
                     }
                     break;
@@ -287,6 +296,36 @@ final class StatAction extends RecursiveTask<ConcurrentHashMap<String, Integer>>
             }
         }
         return filteredKills;
+    }
+
+    private int calculateTotalBlocksMined(@NotNull OfflinePlayer player) {
+        int totalMined = 0;
+        // Iterate through all Materials to find blocks
+        for (Material blockMaterial : Material.values()) {
+            if (blockMaterial.isBlock()) {
+                try {
+                    totalMined += player.getStatistic(Statistic.MINE_BLOCK, blockMaterial);
+                } catch (IllegalArgumentException | NullPointerException e) {
+                    // Ignore: Statistic doesn't exist for this block or player
+                }
+            }
+        }
+        return totalMined;
+    }
+
+    private int calculateTotalItemsCrafted(@NotNull OfflinePlayer player) {
+        int totalCrafted = 0;
+        // Iterate through all Materials to find items
+        for (Material itemMaterial : Material.values()) {
+            if (itemMaterial.isItem()) {
+                try {
+                    totalCrafted += player.getStatistic(Statistic.CRAFT_ITEM, itemMaterial);
+                } catch (IllegalArgumentException | NullPointerException e) {
+                    // Ignore: Statistic doesn't exist for this item or player
+                }
+            }
+        }
+        return totalCrafted;
     }
 
     /**
