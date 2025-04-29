@@ -76,6 +76,19 @@ top-10 format or individually. Currently tested on all versions between **1.16.5
       - `playerstats.reload` for reloading the config (only for OP players by default)
       - `playerstats.exclude` to exclude players from top- and server-statistics (only for OP players by default)
 
+* **Top Command**
+  - Quickly view the server's top players for various statistics.
+  - Usage: `/top <subcommand> [options]`
+  - Available subcommands:
+    - `distance_travelled [mode]`: Show top players by distance (`walk`, `sprint`, `crouch`, `air`, `elytra`, `water`, `boat`, `rail`, `minecart`, `horse`, `pig`, `strider`, `climb`, `mount`).
+    - `kills [player|hostile|passive]`: Show top player kills or mob kills.
+    - `kills entity <type>`: Show top kills of a specific entity (e.g., `zombie`, `creeper`).
+    - `ores_mined <ore_type>`: Show top players who mined the specified ore (e.g., `diamond`, `iron`, `ancient_debris`).
+    - `mined`: Show top players by total blocks mined.
+    - `craft [item]`: Show top players by items crafted, or specify an item (e.g., `stone`).
+    - `play_time`: Show top players by total playtime.
+  - The plugin provides tab-completion for all subcommands and options.
+
 &nbsp;
 
 ## API Usage

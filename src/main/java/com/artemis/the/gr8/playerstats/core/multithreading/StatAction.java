@@ -201,16 +201,20 @@ final class StatAction extends RecursiveTask<ConcurrentHashMap<String, Integer>>
         }
 
         String killFilter = requestSettings.getKillFilterType();
+        boolean isTotalRequest = bukkitStat.isTotalBukkitRequest(); // Check if this is a total request
         int totalValue = 0;
 
         for (ApprovedStat.StatComponent component : bukkitStat.getBukkitComponents()) {
             try {
-                if (bukkitStat.isTotalBukkitRequest()) {
+                // Logic for handling total/filtered requests (e.g., total blocks mined, filtered kills)
+                if (isTotalRequest) {
                     if (component.statistic() == Statistic.KILL_ENTITY && killFilter != null) {
                         totalValue += calculateFilteredEntityKills(player, component.statistic(), killFilter);
                     } else {
                         try {
                             totalValue += player.getStatistic(component.statistic());
+                            // Note: Getting total for MINE_BLOCK or CRAFT_ITEM this way might sum across all sub-types.
+                            // This is the desired behavior for /top mined and /top craft (total).
                         } catch (IllegalArgumentException e) {
                             MyLogger.logWarning("Could not get total for typed statistic '" + component.statistic() + "' using UNTYPED call for player " + player.getName() + ": " + e.getMessage());
                         }
@@ -218,6 +222,7 @@ final class StatAction extends RecursiveTask<ConcurrentHashMap<String, Integer>>
                     break;
                 }
 
+                // Standard calculation for specific sub-stats (or untyped)
                 switch (component.type()) {
                     case UNTYPED:
                         totalValue += player.getStatistic(component.statistic());
@@ -226,21 +231,21 @@ final class StatAction extends RecursiveTask<ConcurrentHashMap<String, Integer>>
                         if (component.material() != null) {
                             totalValue += player.getStatistic(component.statistic(), component.material());
                         } else {
-                            MyLogger.logWarning("BLOCK component has null material but isTotalBukkitRequest is false. Skipping component: " + component + " in " + bukkitStat.alias());
+                            MyLogger.logWarning("BLOCK component has null material but isTotalRequest is false. Skipping component: " + component + " in " + bukkitStat.alias());
                         }
                         break;
                     case ITEM:
                         if (component.material() != null) {
                             totalValue += player.getStatistic(component.statistic(), component.material());
                         } else {
-                            MyLogger.logWarning("ITEM component has null material but isTotalBukkitRequest is false. Skipping component: " + component + " in " + bukkitStat.alias());
+                            MyLogger.logWarning("ITEM component has null material but isTotalRequest is false. Skipping component: " + component + " in " + bukkitStat.alias());
                         }
                         break;
                     case ENTITY:
                         if (component.entityType() != null) {
                             totalValue += player.getStatistic(component.statistic(), component.entityType());
                         } else {
-                            MyLogger.logWarning("ENTITY component has null entityType but isTotalBukkitRequest is false. Skipping component: " + component + " in " + bukkitStat.alias());
+                            MyLogger.logWarning("ENTITY component has null entityType but isTotalRequest is false. Skipping component: " + component + " in " + bukkitStat.alias());
                         }
                         break;
                 }

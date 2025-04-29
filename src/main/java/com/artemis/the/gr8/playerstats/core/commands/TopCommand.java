@@ -40,7 +40,7 @@ public final class TopCommand implements CommandExecutor {
     private static ConfigHandler config;
     private static EnumHandler enumHandler;
     private static final List<String> subcommands = Arrays.asList(
-            "distance_travelled", "kills", "ores_mined", "mined", "craft", "play_time", "playtime"
+            "distance_travelled", "kills", "ores_mined", "mined", "craft", "play_time"
     );
 
     // Map Mode String -> List<Statistic>
@@ -371,7 +371,12 @@ public final class TopCommand implements CommandExecutor {
             return;
         }
 
-        String displayName = "Ores Mined (" + oreArg.substring(0, 1).toUpperCase() + oreArg.substring(1).replace('_', ' ') + ")";
+        // Create a user-friendly display name for the ore total
+        String friendlyOreName = oreArg.replace('_', ' ');
+        friendlyOreName = Arrays.stream(friendlyOreName.split(" "))
+                .map(word -> word.substring(0, 1).toUpperCase() + word.substring(1))
+                .collect(Collectors.joining(" "));
+        String displayName = friendlyOreName + " Mined";
 
         // Create StatComponents for both normal and deepslate (if exists)
         List<StatComponent> components = new ArrayList<>();
@@ -474,10 +479,10 @@ public final class TopCommand implements CommandExecutor {
             String requiredAlias = "total_items_crafted"; // Assumes this alias is defined in approved-stats.yml
             approvedStat = config.getApprovedStat(requiredAlias);
             if (approvedStat == null) {
-                MyLogger.logWarning("Required ApprovedStat alias '" + requiredAlias + "' is not defined in approved-stats.yml!");
-                outputManager.sendFeedbackMsg(sender, StandardMessage.INVALID_STAT_MSG);
-                sender.sendMessage(Component.text("Statistic '" + requiredAlias + "' is not configured.").color(NamedTextColor.RED));
-                return;
+                MyLogger.logWarning("ApprovedStat alias '" + requiredAlias + "' not defined in approved-stats.yml, creating dynamic fallback.");
+                // Fallback dynamic creation for total items crafted
+                StatComponent component = new StatComponent(Statistic.CRAFT_ITEM);
+                approvedStat = new ApprovedStat(requiredAlias, "Items Crafted (Total)", List.of(component));
             }
             displayName = approvedStat.displayName(); // Use display name from config
         }
