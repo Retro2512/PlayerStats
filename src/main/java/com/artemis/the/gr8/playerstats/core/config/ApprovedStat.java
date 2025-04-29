@@ -33,6 +33,9 @@ public final class ApprovedStat {
     private final @NotNull
     List<DerivedStatComponent> derivedComponents;
 
+    // *** ADDED FIELD ***
+    private final boolean isTotalBukkitRequest; // Flag for BUKKIT type requesting total for a typed stat
+
     /**
      * Internal record to hold the details of a single Bukkit statistic
      * component.
@@ -78,57 +81,107 @@ public final class ApprovedStat {
     }
 
     /**
-     * Constructor for a simple BUKKIT ApprovedStat (representing a single
-     * statistic).
+     * Private constructor used by public constructors.
+     */
+    private ApprovedStat(@NotNull String alias, @NotNull String displayName,
+            @NotNull StatType statType,
+            @NotNull List<StatComponent> bukkitComponents,
+            @NotNull List<DerivedStatComponent> derivedComponents,
+            boolean isTotalBukkitRequest) {
+        this.alias = alias.toLowerCase();
+        this.displayName = displayName;
+        this.statType = statType;
+        this.bukkitComponents = List.copyOf(bukkitComponents);
+        this.derivedComponents = List.copyOf(derivedComponents);
+        this.isTotalBukkitRequest = isTotalBukkitRequest;
+
+        // Validation based on type
+        if (statType == StatType.BUKKIT && bukkitComponents.isEmpty()) {
+            throw new IllegalArgumentException("Bukkit component list cannot be empty for a BUKKIT ApprovedStat");
+        }
+        if (statType == StatType.DERIVED && derivedComponents.isEmpty()) {
+            throw new IllegalArgumentException("Derived component list cannot be empty for a DERIVED ApprovedStat");
+        }
+        if (statType == StatType.DERIVED) {
+            for (DerivedStatComponent comp : derivedComponents) {
+                if (!comp.isValidOperation()) {
+                    throw new IllegalArgumentException("Invalid operation '" + comp.operation() + "' in derived component for alias '" + alias + "'");
+                }
+            }
+        }
+        if (isTotalBukkitRequest && statType != StatType.BUKKIT) {
+            throw new IllegalArgumentException("isTotalBukkitRequest can only be true for BUKKIT StatType");
+        }
+        if (isTotalBukkitRequest && bukkitComponents.size() != 1) {
+            throw new IllegalArgumentException("isTotalBukkitRequest requires exactly one BUKKIT component");
+        }
+    }
+
+    /**
+     * Constructor for a simple BUKKIT ApprovedStat (specific sub-stat).
      */
     public ApprovedStat(@NotNull String alias, @NotNull String displayName,
             @NotNull Statistic statistic, @NotNull Statistic.Type type,
             @Nullable Material material, @Nullable EntityType entityType) {
-        this.alias = alias.toLowerCase();
-        this.displayName = displayName;
-        this.statType = StatType.BUKKIT;
-        // Validate inputs match type
-        validateBukkitComponentArgs(statistic, type, material, entityType);
-        this.bukkitComponents = List.of(new StatComponent(statistic, type, material, entityType));
-        this.derivedComponents = Collections.emptyList();
+        this(alias, displayName,
+                StatType.BUKKIT,
+                List.of(createValidatedComponent(statistic, type, material, entityType)), // Create and validate component
+                Collections.emptyList(),
+                false); // Not a total request
     }
 
     /**
-     * Constructor for a compound BUKKIT ApprovedStat (representing a sum of
-     * statistics).
+     * Constructor for a compound BUKKIT ApprovedStat (sum of specific stats).
      */
-    public ApprovedStat(@NotNull String alias, @NotNull String displayName, @NotNull List<StatComponent> bukkitComponents) {
-        if (bukkitComponents.isEmpty()) {
-            throw new IllegalArgumentException("Bukkit component list cannot be empty for a BUKKIT ApprovedStat");
+    public ApprovedStat(@NotNull String alias, @NotNull String displayName,
+            @NotNull List<StatComponent> bukkitComponents) {
+        this(alias, displayName, StatType.BUKKIT, bukkitComponents, Collections.emptyList(), false);
+        // Cannot be a total request if it's compound by definition
+        if (bukkitComponents.size() <= 1) {
+            // This constructor implies multiple components for summing
+            // Use the single stat constructor or the total request constructor instead
+            // We could throw, but let's allow it for now, assuming config loader might use it.
+            // MyLogger.logWarning("Compound BUKKIT constructor used with <= 1 component for: " + alias);
         }
-        this.alias = alias.toLowerCase();
-        this.displayName = displayName;
-        this.statType = StatType.BUKKIT;
-        this.bukkitComponents = List.copyOf(bukkitComponents);
-        this.derivedComponents = Collections.emptyList();
+    }
+
+    /**
+     * Constructor for a BUKKIT ApprovedStat representing the TOTAL for a typed
+     * statistic. The single component provided should contain the base typed
+     * Statistic (e.g., MINE_BLOCK) but its material/entityType fields will be
+     * ignored during calculation.
+     */
+    public ApprovedStat(@NotNull String alias, @NotNull String displayName,
+            @NotNull StatComponent singleBukkitComponent, boolean isTotalRequestMarker) {
+        this(alias, displayName,
+                StatType.BUKKIT,
+                List.of(singleBukkitComponent), // Store the component for reference/type info
+                Collections.emptyList(),
+                isTotalRequestMarker);
+        if (!isTotalRequestMarker) {
+            throw new IllegalArgumentException("This constructor requires isTotalRequestMarker to be true.");
+        }
+        // Basic validation: ensure the component's statistic is actually typed
+        if (singleBukkitComponent.statistic().getType() == Statistic.Type.UNTYPED) {
+            throw new IllegalArgumentException("Cannot request total for an UNTYPED statistic using this constructor.");
+        }
     }
 
     /**
      * Constructor for a DERIVED ApprovedStat.
      */
-    public ApprovedStat(@NotNull String alias, @NotNull String displayName, @NotNull List<DerivedStatComponent> derivedComponents, boolean isDerivedMarker) {
+    public ApprovedStat(@NotNull String alias, @NotNull String displayName,
+            @NotNull List<DerivedStatComponent> derivedComponents, boolean isDerivedMarker) {
+        this(alias, displayName, StatType.DERIVED, Collections.emptyList(), derivedComponents, false);
         if (!isDerivedMarker) {
-            throw new UnsupportedOperationException("Use the correct constructor overload");
+            throw new UnsupportedOperationException("Use the correct constructor overload for DERIVED stats");
         }
-        if (derivedComponents.isEmpty()) {
-            throw new IllegalArgumentException("Derived component list cannot be empty for a DERIVED ApprovedStat");
-        }
-        for (DerivedStatComponent comp : derivedComponents) {
-            if (!comp.isValidOperation()) {
-                throw new IllegalArgumentException("Invalid operation '" + comp.operation() + "' in derived component for alias '" + alias + "'");
-            }
-        }
+    }
 
-        this.alias = alias.toLowerCase();
-        this.displayName = displayName;
-        this.statType = StatType.DERIVED;
-        this.derivedComponents = List.copyOf(derivedComponents);
-        this.bukkitComponents = Collections.emptyList();
+    // Helper to create and validate a single component for the simple BUKKIT constructor
+    private static StatComponent createValidatedComponent(@NotNull Statistic statistic, @NotNull Statistic.Type type, @Nullable Material material, @Nullable EntityType entityType) {
+        validateBukkitComponentArgs(statistic, type, material, entityType);
+        return new StatComponent(statistic, type, material, entityType);
     }
 
     /**
@@ -187,6 +240,16 @@ public final class ApprovedStat {
     public @NotNull
     List<DerivedStatComponent> getDerivedComponents() {
         return derivedComponents;
+    }
+
+    // *** ADDED GETTER ***
+    /**
+     * @return true if this ApprovedStat represents a request for the total
+     * value of a typed Bukkit statistic (e.g., total blocks mined, total items
+     * crafted). Always false for UNTYPED or DERIVED stats.
+     */
+    public boolean isTotalBukkitRequest() {
+        return isTotalBukkitRequest;
     }
 
     // --- Compatibility/Convenience Methods (Only valid for StatType.BUKKIT) ---

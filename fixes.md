@@ -1,60 +1,146 @@
-# Fixes and Improvement List
+# Fixes and Potential Improvements for `/top` Command
 
-_Ordered by priority (most to least urgent)_
+This document analyzes the current `/top` command implementation, identifies logical gaps or error-prone areas across subcommands and related classes, and proposes fixes or enhancements.
 
-## 1. Critical (API/Processor mismatch)
+---
 
-1. **StatRequestManager dummy results and TODOs**
-   - File: `src/main/java/com/artemis/the/gr8/playerstats/core/statistic/StatRequestManager.java`
-   - Issue: The methods `executePlayerStatRequest`, `executeServerStatRequest`, and `executeTopRequest` return placeholder `StatResult` instances due to API/processor mismatch. Multiple TODOs present:
-     - `// TODO: Adapt API or processor - how should results be retrieved synchronously now?`
-     - `// TODO: Adapt API or processor`
-   - Impact: Synchronous API calls always return zeros or empty collections, breaking plugins expecting real data.
+## 1. General Observations
 
-2. **ConfigHandler missing validation for derived stat components**
-   - File: `src/main/java/com/artemis/the/gr8/playerstats/core/config/ConfigHandler.java` (around line 761)
-   - Issue: Contains `// TODO: Add check later during calculation to ensure compAlias refers to an existing ApprovedStat`. Without this validation, derived statistics may reference nonexistent stats at runtime.
-   - Impact: Potential runtime errors or silent failures when computing derived stats.
+- **Alias Naming Consistency**  
+  - Config aliases (`play_time`, `times_jumped`) differ from dynamic aliases in code (`playtime`). Align naming (e.g., use `play_time` everywhere or `playtime` everywhere) to avoid confusion.
 
-## 2. High (Incomplete or half-baked implementations)
+- **Argument Validation**  
+  - Several handlers only check minimum `args.length` but do not reject extra arguments. This can silently ignore user mistakes. Consider:
+    - Validating `args.length` exactly for each subcommand.
+    - Sending a usage hint on unexpected extra arguments.
 
-3. **Excessive logging in StringUtils**
-   - File: `src/main/java/com/artemis/the/gr8/playerstats/core/msg/msgutils/StringUtils.java`
-   - Issue: Contains `//TODO remove excessive logging` comment.
-   - Impact: Log spam and possible performance degradation.
+- **Help & Usage Feedback**  
+  - Only `/top ores_mined` handler sends detailed usage. Other handlers fall back to generic help. Improve UX by adding specific usage messages for each subcommand when syntax is wrong.
 
-4. **Additional pending TODOs in StatRequestManager**
-   - File: `src/main/java/com/artemis/the/gr8/playerstats/core/statistic/StatRequestManager.java`
-   - Issue: Beyond the critical stubbed methods, there are extra TODOs in `executeServerStatRequest` and `executeTopRequest` methods.
-   - Impact: Highlights repeated incomplete integration between API and async processor.
+- **Error Logging vs. User Feedback**  
+  - Code logs low-level warnings (e.g., missing sub-stat) but may not inform the user. Ensure critical errors (invalid config entries, missing aliases) are communicated clearly in chat.
 
-## 3. Medium (Code duplication and potential refactor)
+---
 
-5. **Duplicate mapping logic in TopCommand and TabCompleter**
-   - Files:
-     - `src/main/java/com/artemis/the/gr8/playerstats/core/commands/TopCommand.java`
-     - `src/main/java/com/artemis/the/gr8/playerstats/core/commands/TabCompleter.java`
-   - Issue: Both classes replicate logic for iterating `commandCategories`, calling `mapCommandToAlias`, and filtering unmapped aliases. Violates DRY.
-   - Impact: Maintenance burden, risk of inconsistencies between command execution and tab completion.
+## 2. `handleDistanceTravelled`
 
-6. **Incomplete variable-argument message handling in OutputManager**
-   - File: `src/main/java/com/artemis/the/gr8/playerstats/core/msg/OutputManager.java`
-   - Issue: The overloaded `sendFeedbackMsg(CommandSender, StandardMessage, String...)` method explicitly handles only `INVALID_SUBSTAT_NAME`, defaulting all other parameterized messages to generic fallback.
-   - Impact: Other messages requiring arguments may be misformatted or dropped.
+### Code excerpt
+```java
+if (args.length >= 2) { ... } else { /* total */ }
+```
 
-## 4. Low (Minor code smells and consistency issues)
+### Issues & Suggestions
+- **Tab-Completion Mismatch**: `distanceModeStats` includes modes like `climb`, `mount`, but `distanceModes` (for suggestions) omits some. Synchronize these lists.
+- **Extra Arguments**: If `args.length > 2`, extra args are ignored. Add a branch to reject or warn on too many args.
+- **Alias Tracking**: Pseudo-alias `distance_total` is never registered in config. If users want to reference it elsewhere (e.g., in shared settings), consider adding a real alias in config.
 
-7. **Hardcoded text color in TopCommand**
-   - File: `src/main/java/com/artemis/the/gr8/playerstats/core/commands/TopCommand.java`
-   - Issue: Uses `NamedTextColor.GOLD` directly for stat display. Should be configurable through `ConfigHandler`.
-   - Impact: Inconsistent styling and limited theming flexibility.
+---
 
-8. **Commented-out exception in ApprovedStat**
-   - File: `src/main/java/com/artemis/the/gr8/playerstats/core/config/ApprovedStat.java` (around line 285)
-   - Issue: A `throw` statement for entity-type validation is commented out, suggesting uncertainty in validation requirements.
-   - Impact: Potential silent misconfiguration or unexpected behavior for ENTITY-type stats.
+## 3. `handleKills`
 
-9. **Potential resource handling in OutputManager.close()**
-   - File: `src/main/java/com/artemis/the/gr8/playerstats/core/msg/OutputManager.java`
-   - Issue: Static `adventure` field is closed and nulled, but repeated reloads or plugin disable/enable cycles may not reinitialize or close properly.
-   - Impact: Memory leaks or `NullPointerException` on subsequent reloads.
+### Code excerpt
+```java
+if (args.length == 1) { /* default mob kills */ }
+else { switch(filterType) { ... } }
+request.getSettings().setKillFilterType(filterType);
+```
+
+### Issues & Suggestions
+- **Filter Implementation**: Confirm that `StatRequestSettings#setKillFilterType` exists and is honored in the processor. Otherwise, `hostile`/`passive` and `/top kills entity <type>` behave identically.
+- **Default FilterType Value**: On `/top kills`, `filterType` remains `null`, then `setKillFilterType(null)` – ensure processor handles `null` as total or defaults.
+- **Extra Arguments**: `/top kills player extra` is accepted without error. Enforce exact `args.length` or explicit help on invalid extra args.
+- **Help Message**: Provide usage string: `Usage: /top kills [player|hostile|passive|entity <type>]`.
+
+---
+
+## 4. `handleOresMined`
+
+### Code excerpt
+```java
+if (args.length < 2) { send usage; return; }
+Material ore = get from enum; if null -> error
+```
+
+### Issues & Suggestions
+- **Case Insensitive Handling**: `enumHandler.getBlockEnum(oreArg + "_ore")` may fail for names like `Nether_Quartz`. Ensure consistent normalization (lowercase + underscores) on config and input.
+- **Special Cases Hard-Coded**: `nether_quartz`, `nether_gold`, `ancient_debris` are coded manual cases. Document these or handle programmatically by checking `Material` names.
+- **Suggesting Valid Ores**: Tab-completer lists only configured aliases. Consider generating a complete ore-type list from `EnumHandler.getAllBlockNames()` filtered by `_ORE` or a known whitelist.
+
+---
+
+## 5. `handleMined`
+
+### Code excerpt
+```java
+String alias = "total_blocks_mined";
+ApprovedStat stat = config.getApprovedStat(alias);
+if (stat == null) -> error
+```
+
+### Issues & Suggestions
+- **Config Dependency**: This subcommand relies on the `total_blocks_mined` alias exactly. If config alias differs (e.g., `blocks_mined`), the command breaks. Consider:
+  - Document required aliases in `README.md`.
+  - Automatically register `blocks_mined` as an alias by alias mapping in `ConfigHandler`.
+- **Dynamic Fallback**: For missing alias, fallback could create a dynamic total‐request stat like other handlers do.
+
+---
+
+## 6. `handleCraft`
+
+### Code excerpt
+```java
+if (args.length >= 2) { // specific item }
+else { alias = total_items_crafted };
+```
+
+### Issues & Suggestions
+- **Alias Mismatch**: Config uses `total_items_crafted`; user might try `/top craft` expecting total, but alias is `craft` in code? Confirm command help suggests `/top craft` for total.
+- **Subcommand Name vs. Alias**: The pseudo alias for specific items is `craft_<item>`, but help lists `craft` only. Add help for `/top craft <item>`.
+- **Tab-Completion Data**: `craftableItems` is loaded from all registered `enumHandler.getItemNames()` – this is good.
+
+---
+
+## 7. `handlePlaytime`
+
+### Code excerpt
+```java
+StatComponent comp = new StatComponent(Statistic.PLAY_ONE_MINUTE);
+ApprovedStat(alias="playtime")
+```
+
+### Issues & Suggestions
+- **Naming Difference**: Config uses `play_time` but dynamic alias is `playtime`. Users must type `/top playtime`. Align to config alias or add both aliases to help.
+- **Missing Config Entry**: If user expects to configure display-name via config, dynamic stat bypasses config. Either:
+  - Add `playtime` to config defaults and load it.
+  - Or accept a config override for dynamic stats.
+
+---
+
+## 8. `TabCompleter` Integration
+
+### Observations & Suggestions
+- **Subcommand List**: Hard-coded list matches `TopCommand.subcommands`, but must keep in sync when adding new aliases or changing names.
+- **`oreTypes` Calculation**: Extracts all aliases ending with `_mined`. But alias `total_blocks_mined` ends with `_mined`? It ends with `_mined`. Good. Yet usage suggests bare ore types, not `blocks` or `total`. Confirm filtering logic.
+- **`killTypes` vs. `TopCommand`**: `TabCompleter` suggests `entity`, `player`, `hostile`, `passive` for `/top kills`. Matches code. Good.
+- **Extra-Alias Suggestions**: After `/top mined`, no further args; suggestions list empty. Acceptable.
+- **Consistency**: Ensure `TabCompleter` respects dynamically added config aliases (like `total_blocks_mined`). If new aliases added, they may not appear in suggestions for no-arg case – consider adding `config.getApprovedAliases()` into top-level suggestions if `/top` is called with no subcommand.
+
+---
+
+## 9. ConfigHandler Approval Logic
+
+- **Typed Stats Without Sub-stat**: Previously simple stats like `MINE_BLOCK` were skipped. We added total-request support. Ensure tests cover:
+  - `total_blocks_mined`, `total_items_crafted` loaded as total.
+  - `blocks_placed` total-request works.
+- **Derived Stats**: `StatType.DERIVED` entries require a `components` list. Validate errors for missing list or invalid operations.
+
+---
+
+## 10. Automated Tests & Documentation
+
+- **Unit Tests**: Add tests for each `/top` subcommand covering valid and invalid argument patterns, ensuring correct exceptions or help messages.
+- **README / Wiki**: Document all `/top` subcommands, required config aliases, and expected behaviors to assist server administrators.
+
+---
+
+*End of fixes.md.* 

@@ -9,7 +9,9 @@ import java.util.concurrent.RecursiveTask;
 import org.bukkit.Material;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.Statistic;
+import org.bukkit.entity.Animals;
 import org.bukkit.entity.EntityType;
+import org.bukkit.entity.Monster;
 import org.jetbrains.annotations.NotNull;
 
 import com.artemis.the.gr8.playerstats.api.StatRequest;
@@ -18,6 +20,7 @@ import com.artemis.the.gr8.playerstats.core.config.ConfigHandler;
 import com.artemis.the.gr8.playerstats.core.config.DerivedStatComponent;
 import com.artemis.the.gr8.playerstats.core.config.StatType;
 import com.artemis.the.gr8.playerstats.core.utils.MyLogger;
+import com.artemis.the.gr8.playerstats.core.utils.OfflinePlayerHandler;
 
 /**
  * The action that is executed when a stat-command is triggered.
@@ -30,7 +33,8 @@ final class StatAction extends RecursiveTask<ConcurrentHashMap<String, Integer>>
 
     private final OfflinePlayer[] playerList;
     private final StatRequest.Settings requestSettings;
-    private final ConfigHandler configHandler; // Added: Need access to getApprovedStat
+    private final ConfigHandler configHandler;
+    private final OfflinePlayerHandler offlinePlayerHandler;
 
     /**
      * @param players an Array of OfflinePlayer objects
@@ -41,7 +45,8 @@ final class StatAction extends RecursiveTask<ConcurrentHashMap<String, Integer>>
         MyLogger.actionCreated(players.length);
         playerList = players;
         requestSettings = request;
-        this.configHandler = ConfigHandler.getInstance(); // Added: Initialize ConfigHandler
+        this.configHandler = ConfigHandler.getInstance();
+        this.offlinePlayerHandler = OfflinePlayerHandler.getInstance();
     }
 
     @Override
@@ -88,8 +93,15 @@ final class StatAction extends RecursiveTask<ConcurrentHashMap<String, Integer>>
         ConcurrentHashMap<String, Integer> playerStats = new ConcurrentHashMap<>();
         for (OfflinePlayer player : players) {
             if (player != null) {
-                // Calculate value using the recursive helper, starting with depth 0 and empty cache
-                int statValue = calculatePlayerStatValueRecursive(player, statToCalculate.alias(), new HashMap<>(), 0);
+                int statValue;
+                // Directly calculate BUKKIT types, use recursive lookup only for DERIVED types
+                if (statToCalculate.getStatType() == StatType.BUKKIT) {
+                    statValue = calculateBukkitStatValue(player, statToCalculate);
+                } else { // Must be DERIVED
+                    // Calculate value using the recursive helper, starting with depth 0 and empty cache
+                    // This path is now only for DERIVED stats defined in config, so looking up the alias is correct.
+                    statValue = calculatePlayerStatValueRecursive(player, statToCalculate.alias(), new HashMap<>(), 0);
+                }
                 playerStats.put(player.getName(), statValue);
             }
         }
@@ -184,73 +196,92 @@ final class StatAction extends RecursiveTask<ConcurrentHashMap<String, Integer>>
      */
     private int calculateBukkitStatValue(@NotNull OfflinePlayer player, @NotNull ApprovedStat bukkitStat) {
         if (bukkitStat.getStatType() != StatType.BUKKIT) {
-            // Should not happen if called correctly
             MyLogger.logWarning("calculateBukkitStatValue called with a non-BUKKIT stat: " + bukkitStat.alias());
             return 0;
         }
 
+        String killFilter = requestSettings.getKillFilterType();
         int totalValue = 0;
+
         for (ApprovedStat.StatComponent component : bukkitStat.getBukkitComponents()) {
             try {
+                if (bukkitStat.isTotalBukkitRequest()) {
+                    if (component.statistic() == Statistic.KILL_ENTITY && killFilter != null) {
+                        totalValue += calculateFilteredEntityKills(player, component.statistic(), killFilter);
+                    } else {
+                        try {
+                            totalValue += player.getStatistic(component.statistic());
+                        } catch (IllegalArgumentException e) {
+                            MyLogger.logWarning("Could not get total for typed statistic '" + component.statistic() + "' using UNTYPED call for player " + player.getName() + ": " + e.getMessage());
+                        }
+                    }
+                    break;
+                }
+
                 switch (component.type()) {
                     case UNTYPED:
                         totalValue += player.getStatistic(component.statistic());
                         break;
                     case BLOCK:
-                        if (component.material() != null) { // Check if sub-stat is specified
+                        if (component.material() != null) {
                             totalValue += player.getStatistic(component.statistic(), component.material());
-                        } else { // Material is null, assume total for this block statistic is intended (Bukkit might return 0 or error)
-                            // Bukkit API for total block stats (like all blocks mined) is usually just the stat enum itself.
-                            // Example: MINE_BLOCK (total), not MINE_BLOCK with null Material.
-                            // Let's try calling the UNTYPED version if material is null.
-                            if (component.statistic().getType() == Statistic.Type.BLOCK) {
-                                // totalValue += player.getStatistic(component.statistic()); // This might work for MINE_BLOCK total
-                                // Let's log a warning for now, as summing totals requires careful thought.
-                                MyLogger.logLowLevelMsg("Calculating total for BLOCK stat '" + component.statistic() + "' in ApprovedStat '" + bukkitStat.alias() + "'. This might not yield expected results for compound sums.");
-                                totalValue += player.getStatistic(component.statistic()); // Attempting UNTYPED call
-                            } else {
-                                MyLogger.logWarning("Unexpected: BLOCK type component has null material but stat isn't Type.BLOCK? Skipping component: " + component + " in " + bukkitStat.alias());
-                            }
+                        } else {
+                            MyLogger.logWarning("BLOCK component has null material but isTotalBukkitRequest is false. Skipping component: " + component + " in " + bukkitStat.alias());
                         }
                         break;
                     case ITEM:
                         if (component.material() != null) {
                             totalValue += player.getStatistic(component.statistic(), component.material());
                         } else {
-                            // Similar logic for ITEM totals
-                            if (component.statistic().getType() == Statistic.Type.ITEM) {
-                                MyLogger.logLowLevelMsg("Calculating total for ITEM stat '" + component.statistic() + "' in ApprovedStat '" + bukkitStat.alias() + "'. This might not yield expected results for compound sums.");
-                                totalValue += player.getStatistic(component.statistic()); // Attempting UNTYPED call
-                            } else {
-                                MyLogger.logWarning("Unexpected: ITEM type component has null material but stat isn't Type.ITEM? Skipping component: " + component + " in " + bukkitStat.alias());
-                            }
+                            MyLogger.logWarning("ITEM component has null material but isTotalBukkitRequest is false. Skipping component: " + component + " in " + bukkitStat.alias());
                         }
                         break;
                     case ENTITY:
                         if (component.entityType() != null) {
                             totalValue += player.getStatistic(component.statistic(), component.entityType());
                         } else {
-                            // Similar logic for ENTITY totals (like MOB_KILLS)
-                            if (component.statistic().getType() == Statistic.Type.ENTITY) {
-                                MyLogger.logLowLevelMsg("Calculating total for ENTITY stat '" + component.statistic() + "' in ApprovedStat '" + bukkitStat.alias() + "'. This might not yield expected results for compound sums.");
-                                totalValue += player.getStatistic(component.statistic()); // Attempting UNTYPED call
-                            } else {
-                                MyLogger.logWarning("Unexpected: ENTITY type component has null entityType but stat isn't Type.ENTITY? Skipping component: " + component + " in " + bukkitStat.alias());
-                            }
+                            MyLogger.logWarning("ENTITY component has null entityType but isTotalBukkitRequest is false. Skipping component: " + component + " in " + bukkitStat.alias());
                         }
                         break;
                 }
             } catch (NullPointerException npe) {
-                // Catch potential NPE if Bukkit returns null for a player/stat combo (e.g., stat doesn't exist for player)
                 MyLogger.logLowLevelMsg("NPE caught getting stat component '" + component + "' for player " + player.getName() + " in ApprovedStat '" + bukkitStat.alias() + "'. Assuming 0 for this component.");
-                // totalValue remains unchanged (effectively adding 0)
             } catch (Exception e) {
-                // Catch other potential exceptions during Bukkit call
                 MyLogger.logWarning("Exception caught getting stat component '" + component + "' for player " + player.getName() + " in ApprovedStat '" + bukkitStat.alias() + "': " + e.getMessage());
-                // totalValue remains unchanged
             }
         }
         return totalValue;
+    }
+
+    private int calculateFilteredEntityKills(@NotNull OfflinePlayer player, @NotNull Statistic killStat, @NotNull String filterType) {
+        int filteredKills = 0;
+        for (EntityType entityType : EntityType.values()) {
+            if (!entityType.isAlive() || entityType == EntityType.PLAYER) {
+                continue; // Skip non-living entities and players
+            }
+
+            boolean shouldInclude = switch (filterType) {
+                case "hostile" ->
+                    entityType.getEntityClass() != null && Monster.class.isAssignableFrom(entityType.getEntityClass());
+                case "passive" ->
+                    entityType.getEntityClass() != null && Animals.class.isAssignableFrom(entityType.getEntityClass()) && !Monster.class.isAssignableFrom(entityType.getEntityClass());
+                case "entity" ->
+                    true; // Include all non-player living entities
+                default ->
+                    false; // Should not happen if command validation is correct
+            };
+
+            if (shouldInclude) {
+                try {
+                    filteredKills += player.getStatistic(killStat, entityType);
+                } catch (NullPointerException npe) {
+                    // Stat doesn't exist for this entity, ignore
+                } catch (IllegalArgumentException iae) {
+                    // Stat doesn't apply to this entity (e.g., KILL_ENTITY on ARMOR_STAND), ignore
+                }
+            }
+        }
+        return filteredKills;
     }
 
     /**

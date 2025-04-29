@@ -1,10 +1,13 @@
 package com.artemis.the.gr8.playerstats.core.msg;
 
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 
 import org.bukkit.Statistic;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import com.artemis.the.gr8.playerstats.api.enums.Target;
 import com.artemis.the.gr8.playerstats.api.enums.Unit;
@@ -14,7 +17,6 @@ import com.artemis.the.gr8.playerstats.core.config.StatType;
 import com.artemis.the.gr8.playerstats.core.msg.components.ComponentFactory;
 import com.artemis.the.gr8.playerstats.core.msg.msgutils.NumberFormatter;
 import com.artemis.the.gr8.playerstats.core.utils.EnumHandler;
-import com.artemis.the.gr8.playerstats.core.utils.MyLogger;
 
 import static net.kyori.adventure.text.Component.newline;
 import static net.kyori.adventure.text.Component.space;
@@ -39,6 +41,27 @@ public final class TopCommandFormatter {
     ApprovedStat approvedStat;
     private final int topListSize;
     private final String senderName;
+
+    private static final Set<Statistic> distanceStats = new HashSet<>();
+
+    static {
+        // Populate the set of distance statistics
+        distanceStats.add(Statistic.WALK_ONE_CM);
+        distanceStats.add(Statistic.CROUCH_ONE_CM);
+        distanceStats.add(Statistic.SPRINT_ONE_CM);
+        distanceStats.add(Statistic.SWIM_ONE_CM);
+        distanceStats.add(Statistic.CLIMB_ONE_CM);
+        distanceStats.add(Statistic.FLY_ONE_CM);
+        distanceStats.add(Statistic.AVIATE_ONE_CM); // Elytra
+        distanceStats.add(Statistic.BOAT_ONE_CM);
+        distanceStats.add(Statistic.MINECART_ONE_CM);
+        distanceStats.add(Statistic.PIG_ONE_CM);
+        distanceStats.add(Statistic.HORSE_ONE_CM);
+        distanceStats.add(Statistic.STRIDER_ONE_CM);
+        // WALK_ON_WATER_ONE_CM and WALK_UNDER_WATER_ONE_CM seem separate from SWIM
+        distanceStats.add(Statistic.WALK_ON_WATER_ONE_CM);
+        distanceStats.add(Statistic.WALK_UNDER_WATER_ONE_CM);
+    }
 
     public TopCommandFormatter(@NotNull LinkedHashMap<String, Integer> topStats,
             int senderRank, int senderStatValue,
@@ -115,9 +138,15 @@ public final class TopCommandFormatter {
 
     // Renamed and repurposed for the footer line
     private TextComponent createFooterComponent() {
+        // Get the primary statistic for formatting hints, handling null/DERIVED
+        Statistic primaryStat = null;
+        if (approvedStat.getStatType() == StatType.BUKKIT && !approvedStat.getBukkitComponents().isEmpty()) {
+            primaryStat = approvedStat.getBukkitComponents().get(0).statistic();
+        }
+
         TextComponent yourRankLabel = text("Your Rank: ").color(NamedTextColor.GRAY);
         TextComponent rankIndicator;
-        TextComponent yourValue = formatNumber(senderStatValue, approvedStat.statistic());
+        TextComponent yourValue = formatNumber(senderStatValue, primaryStat);
 
         if (senderRank <= 0) { // Not ranked or error
             rankIndicator = text("N/A").color(NamedTextColor.DARK_GRAY);
@@ -137,9 +166,15 @@ public final class TopCommandFormatter {
     }
 
     private TextComponent createSingleLine(int rank, String playerName, int statValue) {
+        // Get the primary statistic for formatting hints, handling null/DERIVED
+        Statistic primaryStat = null;
+        if (approvedStat.getStatType() == StatType.BUKKIT && !approvedStat.getBukkitComponents().isEmpty()) {
+            primaryStat = approvedStat.getBukkitComponents().get(0).statistic();
+        }
+
         TextComponent rankNum = componentFactory.rankNumber(rank);
         TextComponent pName = componentFactory.playerName(playerName, Target.TOP);
-        TextComponent statNum = formatNumber(statValue, approvedStat.statistic()); // Use first component's stat for formatting hints
+        TextComponent statNum = formatNumber(statValue, primaryStat);
 
         // Simple format: "Rank. PlayerName Value"
         return text()
@@ -152,38 +187,44 @@ public final class TopCommandFormatter {
                 .build();
     }
 
-    // Simplified number formatting - replicates parts of MessageBuilder
-    private TextComponent formatNumber(long statNumber, Statistic statistic) { // Statistic parameter might be null for derived stats
-        // If the associated ApprovedStat is DERIVED, always use default formatting
-        if (approvedStat.getStatType() == StatType.DERIVED) {
+    private TextComponent formatNumber(long statNumber, @Nullable Statistic statistic) { // Statistic can be null
+        if (statistic == null) {
             return componentFactory.statNumber(numberFormatter.formatDefaultNumber(statNumber), Target.TOP);
         }
 
-        // Otherwise (it's BUKKIT), use the logic based on the (first) component's statistic type
-        Statistic firstStat = approvedStat.statistic(); // Get the first Bukkit component's stat
-        if (firstStat == null) {
-            // Should not happen for BUKKIT type, but handle defensively
-            MyLogger.logWarning("Cannot format number for BUKKIT stat '" + approvedStat.alias() + "' as first component statistic is null.");
-            return componentFactory.statNumber(numberFormatter.formatDefaultNumber(statNumber), Target.TOP);
+        // Check distance first
+        if (distanceStats.contains(statistic)) {
+            return componentFactory.distanceNumber(numberFormatter.formatDistanceInBlocks(statNumber), Target.TOP);
         }
 
-        Statistic.Type type = firstStat.getType();
+        // *** New check for Playtime ***
+        if (statistic == Statistic.PLAY_ONE_MINUTE) {
+            return componentFactory.timeNumber(numberFormatter.formatPlaytimeHours(statNumber), Target.TOP);
+            // Assuming ComponentFactory.timeNumber is appropriate for styling "X hours"
+        }
+        // *** End Playtime check ***
+
+        // Existing formatting logic
+        Statistic.Type type = statistic.getType();
         if (type == Statistic.Type.UNTYPED) {
-            switch (firstStat) { // Use the actual Statistic enum for the switch
+            switch (statistic) {
                 case DAMAGE_DEALT, DAMAGE_TAKEN, DAMAGE_BLOCKED_BY_SHIELD, DAMAGE_ABSORBED, DAMAGE_RESISTED, DAMAGE_DEALT_ABSORBED, DAMAGE_DEALT_RESISTED:
                     return componentFactory.damageNumber(numberFormatter.formatDamageNumber(statNumber, Unit.HEART), Target.TOP);
-                case PLAY_ONE_MINUTE, TIME_SINCE_DEATH, TIME_SINCE_REST:
+                // PLAY_ONE_MINUTE is handled above
+                case TIME_SINCE_DEATH, TIME_SINCE_REST:
+                    // Use default D/H/M/S formatting for these
                     return componentFactory.timeNumber(numberFormatter.formatTimeNumber(statNumber, Unit.DAY, Unit.SECOND), Target.TOP);
                 case TALKED_TO_VILLAGER, TRADED_WITH_VILLAGER:
                     return componentFactory.statNumber(numberFormatter.formatDefaultNumber(statNumber) + "x", Target.TOP);
                 default:
+                    // Default formatting for other UNTYPED stats
                     return componentFactory.statNumber(numberFormatter.formatDefaultNumber(statNumber), Target.TOP);
             }
         } else if (type == Statistic.Type.BLOCK || type == Statistic.Type.ITEM) {
             return componentFactory.statNumber(numberFormatter.formatDefaultNumber(statNumber), Target.TOP);
         } else if (type == Statistic.Type.ENTITY) {
             return componentFactory.statNumber(numberFormatter.formatDefaultNumber(statNumber), Target.TOP);
-        } else { // Should not happen, but fallback
+        } else {
             return componentFactory.statNumber(numberFormatter.formatDefaultNumber(statNumber), Target.TOP);
         }
     }

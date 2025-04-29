@@ -115,6 +115,9 @@ public abstract class StatRequest<T> {
         private Material block; // DEPRECATED - Get from approvedStat component(s)
         private Material item; // DEPRECATED - Get from approvedStat component(s)
 
+        // Added field for kill filtering
+        private String killFilterType; // e.g., "hostile", "passive"
+
         /**
          * @param sender the CommandSender who prompted this RequestGenerator
          */
@@ -206,6 +209,16 @@ public abstract class StatRequest<T> {
 
         public void setApprovedStat(@Nullable ApprovedStat approvedStat) {
             this.approvedStat = approvedStat;
+        }
+
+        // Added getter and setter for killFilterType
+        public @Nullable
+        String getKillFilterType() {
+            return killFilterType;
+        }
+
+        public void setKillFilterType(@Nullable String killFilterType) {
+            this.killFilterType = killFilterType;
         }
     }
 }

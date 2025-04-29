@@ -803,12 +803,18 @@ public final class ConfigHandler extends YamlFileHandler {
 
                     } else {
                         // Simple BUKKIT stat (single statistic)
-                        // Parse the whole section as if it were a single component definition
                         ApprovedStat.StatComponent component = parseBukkitStatComponent(alias, statSection.getValues(false));
                         if (component != null) {
-                            ApprovedStat simpleBukkitStat = new ApprovedStat(alias, displayName, component.statistic(), component.type(), component.material(), component.entityType()); // Use simple BUKKIT constructor
-                            loadedStats.put(alias, simpleBukkitStat);
-                            MyLogger.logLowLevelMsg("Loaded simple BUKKIT approved stat: " + alias);
+                            // If it's a typed Bukkit statistic (BLOCK, ITEM, ENTITY) without a sub-statistic, treat as a total request
+                            if (component.type() != Statistic.Type.UNTYPED && component.material() == null && component.entityType() == null) {
+                                ApprovedStat totalStat = new ApprovedStat(alias, displayName, component, true);
+                                loadedStats.put(alias, totalStat);
+                                MyLogger.logLowLevelMsg("Loaded total BUKKIT approved stat: " + alias);
+                            } else {
+                                ApprovedStat simpleBukkitStat = new ApprovedStat(alias, displayName, component.statistic(), component.type(), component.material(), component.entityType());
+                                loadedStats.put(alias, simpleBukkitStat);
+                                MyLogger.logLowLevelMsg("Loaded simple BUKKIT approved stat: " + alias);
+                            }
                         } else {
                             MyLogger.logWarning("Skipping simple BUKKIT approved stat '" + alias + "' due to invalid definition.");
                         }

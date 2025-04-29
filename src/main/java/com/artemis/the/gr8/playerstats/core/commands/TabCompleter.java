@@ -1,9 +1,9 @@
 package com.artemis.the.gr8.playerstats.core.commands;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.bukkit.Statistic;
@@ -20,6 +20,14 @@ public final class TabCompleter implements org.bukkit.command.TabCompleter {
 
     private final OfflinePlayerHandler offlinePlayerHandler;
     private final EnumHandler enumHandler;
+    private final ConfigHandler configHandler;
+
+    private static final List<String> topSubcommands = TopCommand.getSubcommands();
+    private static final List<String> distanceModes = TopCommand.getDistanceModes().stream().sorted().toList();
+    private static final List<String> killTypes = Arrays.asList("entity", "player", "hostile", "passive");
+    private List<String> oreTypes;
+    private List<String> craftableItems;
+    private List<String> entityTypes;
 
     private List<String> statCommandTargets;
     private List<String> excludeCommandOptions;
@@ -27,6 +35,7 @@ public final class TabCompleter implements org.bukkit.command.TabCompleter {
     public TabCompleter() {
         offlinePlayerHandler = OfflinePlayerHandler.getInstance();
         enumHandler = EnumHandler.getInstance();
+        configHandler = ConfigHandler.getInstance();
         prepareLists();
     }
 
@@ -49,13 +58,36 @@ public final class TabCompleter implements org.bukkit.command.TabCompleter {
 
     private @Nullable
     List<String> getTopCommandSuggestions(@NotNull String[] args) {
+        List<String> suggestions = new ArrayList<>();
+        String currentArg = args[args.length - 1].toLowerCase(Locale.ENGLISH);
+
         if (args.length == 1) {
-            // Suggest approved stat aliases for the first argument
-            Set<String> approvedAliases = ConfigHandler.getInstance().getApprovedAliases();
-            return getDynamicTabSuggestions(new ArrayList<>(approvedAliases), args[0]);
+            suggestions = topSubcommands;
+        } else if (args.length == 2) {
+            String subCommand = args[0].toLowerCase(Locale.ENGLISH);
+            switch (subCommand) {
+                case "distance_travelled":
+                    suggestions = distanceModes;
+                    break;
+                case "kills":
+                    suggestions = killTypes;
+                    break;
+                case "ores_mined":
+                    suggestions = oreTypes;
+                    break;
+                case "craft":
+                    suggestions = craftableItems;
+                    break;
+            }
+        } else if (args.length == 3) {
+            String subCommand = args[0].toLowerCase(Locale.ENGLISH);
+            String killType = args[1].toLowerCase(Locale.ENGLISH);
+            if (subCommand.equals("kills") && killType.equals("entity")) {
+                suggestions = entityTypes;
+            }
         }
-        // No suggestions for subsequent arguments for /top
-        return null;
+
+        return getDynamicTabSuggestions(suggestions, currentArg);
     }
 
     private @Nullable
@@ -92,7 +124,6 @@ public final class TabCompleter implements org.bukkit.command.TabCompleter {
         } else {
             String previousArg = args[args.length - 2];
 
-            //after checking if args[0] is a viable statistic, suggest sub-stat or targets
             if (enumHandler.isStatistic(previousArg)) {
                 Statistic stat = enumHandler.getStatEnum(previousArg);
                 if (stat != null) {
@@ -100,23 +131,17 @@ public final class TabCompleter implements org.bukkit.command.TabCompleter {
                 }
             } else if (previousArg.equalsIgnoreCase("player")) {
                 if (args.length >= 3 && enumHandler.isEntityStatistic(args[args.length - 3])) {
-                    tabSuggestions = statCommandTargets;  //if arg before "player" was entity-sub-stat, suggest targets
-                } else {  //otherwise "player" is the target: suggest playerNames
+                    tabSuggestions = statCommandTargets;
+                } else {
                     tabSuggestions = offlinePlayerHandler.getIncludedOfflinePlayerNames();
                 }
-            } //after a substatistic, suggest targets
-            else if (enumHandler.isSubStatEntry(previousArg)) {
+            } else if (enumHandler.isSubStatEntry(previousArg)) {
                 tabSuggestions = statCommandTargets;
             }
         }
         return getDynamicTabSuggestions(tabSuggestions, args[args.length - 1]);
     }
 
-    /**
-     * These tabSuggestions take into account that the commandSender will have
-     * been typing, so they are filtered for the letters that have already been
-     * typed.
-     */
     private List<String> getDynamicTabSuggestions(@NotNull List<String> completeList, String currentArg) {
         return completeList.stream()
                 .filter(item -> item.toLowerCase(Locale.ENGLISH).contains(currentArg.toLowerCase(Locale.ENGLISH)))
@@ -156,5 +181,24 @@ public final class TabCompleter implements org.bukkit.command.TabCompleter {
     private void prepareLists() {
         statCommandTargets = List.of("top", "player", "server", "me");
         excludeCommandOptions = List.of("add", "list", "remove", "info");
+
+        craftableItems = enumHandler.getItemNames();
+        entityTypes = enumHandler.getEntityNames();
+
+        // Generate ore types dynamically from all registered block names ending with '_ore' or special-case ancient_debris
+        oreTypes = enumHandler.getAllBlockNames().stream()
+                .filter(name -> name.toLowerCase(Locale.ENGLISH).endsWith("_ore")
+                || name.equalsIgnoreCase("ancient_debris"))
+                .map(name -> {
+                    String lower = name.toLowerCase(Locale.ENGLISH);
+                    if (lower.equals("ancient_debris")) {
+                        return lower;
+                    }
+                    // Remove '_ore' suffix
+                    return lower.substring(0, lower.length() - "_ore".length());
+                })
+                .distinct()
+                .sorted()
+                .collect(Collectors.toList());
     }
 }

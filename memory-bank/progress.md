@@ -1,0 +1,8 @@
+- **Step 2:** Refactored `TabCompleter.getTopCommandSuggestions` to provide context-aware suggestions for subcommands and arguments. (Tested successfully)
+- **Step 3:** Implemented `/top distance_travelled` subcommand logic in `TopCommand`, `NumberFormatter`, and `TopCommandFormatter`. Calculation logic added, unit conversion to blocks implemented. (Builds, but reported calculation inaccuracy)
+- **Step 4:** Implemented `/top kills` subcommand logic, including filters (player, hostile, passive, entity type). Added `killFilterType` to `StatRequest.Settings` and handling logic in `StatAction`.
+- **Step 5:** Implemented `/top ores_mined <ore_type>` subcommand. Combines normal and deepslate variants. *Note: Silk Touch exclusion not implemented due to current stat limitations.*
+- **Step 6:** Implemented `/top mined` subcommand for total blocks mined.
+- **Step 7:** Implemented `/top craft [item]` subcommand for total or specific item crafting.
+- **Step 8:** Implemented `/top playtime` subcommand. Added `formatPlaytimeHours` to `NumberFormatter` and logic in `TopCommandFormatter` for conversion to hours.
+- **Step 9:** Performed minor cleanup (removed FALL_ONE_CM from distance calculation). 
