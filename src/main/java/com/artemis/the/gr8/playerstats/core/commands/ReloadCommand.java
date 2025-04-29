@@ -1,11 +1,11 @@
 package com.artemis.the.gr8.playerstats.core.commands;
 
-import com.artemis.the.gr8.playerstats.core.multithreading.ThreadManager;
-
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.jetbrains.annotations.NotNull;
+
+import com.artemis.the.gr8.playerstats.core.multithreading.ThreadManager;
 
 public final class ReloadCommand implements CommandExecutor {
 

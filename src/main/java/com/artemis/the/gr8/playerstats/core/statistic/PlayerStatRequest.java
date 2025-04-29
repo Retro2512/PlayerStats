@@ -1,15 +1,16 @@
 package com.artemis.the.gr8.playerstats.core.statistic;
 
-import com.artemis.the.gr8.playerstats.api.RequestGenerator;
-import com.artemis.the.gr8.playerstats.api.StatRequest;
-import com.artemis.the.gr8.playerstats.core.config.ConfigHandler;
-import com.artemis.the.gr8.playerstats.core.utils.OfflinePlayerHandler;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.Statistic;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.EntityType;
 import org.jetbrains.annotations.NotNull;
+
+import com.artemis.the.gr8.playerstats.api.RequestGenerator;
+import com.artemis.the.gr8.playerstats.api.StatRequest;
+import com.artemis.the.gr8.playerstats.core.config.ConfigHandler;
+import com.artemis.the.gr8.playerstats.core.utils.OfflinePlayerHandler;
 
 public final class PlayerStatRequest extends StatRequest<Integer> implements RequestGenerator<Integer> {
 
@@ -27,7 +28,27 @@ public final class PlayerStatRequest extends StatRequest<Integer> implements Req
         if (!hasValidTarget()) {
             return false;
         }
-        return super.hasMatchingSubStat();
+
+        // Check using ApprovedStat first (newer system)
+        if (super.getSettings().getApprovedStat() != null) {
+            return super.hasMatchingSubStat();
+        } // Fallback: Check legacy fields if ApprovedStat is null
+        else {
+            Statistic stat = super.getSettings().getStatistic();
+            if (stat == null) {
+                return false; // Need a statistic
+            }
+            return switch (stat.getType()) {
+                case UNTYPED ->
+                    true; // Untyped stats don't need a sub-stat
+                case BLOCK ->
+                    super.getSettings().getBlock() != null;
+                case ITEM ->
+                    super.getSettings().getItem() != null;
+                case ENTITY ->
+                    super.getSettings().getEntity() != null;
+            };
+        }
     }
 
     private boolean hasValidTarget() {

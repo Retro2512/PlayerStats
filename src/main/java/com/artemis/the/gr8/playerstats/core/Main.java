@@ -1,25 +1,9 @@
 package com.artemis.the.gr8.playerstats.core;
 
-import com.artemis.the.gr8.playerstats.api.PlayerStats;
-import com.artemis.the.gr8.playerstats.api.StatNumberFormatter;
-import com.artemis.the.gr8.playerstats.api.StatTextFormatter;
-import com.artemis.the.gr8.playerstats.api.StatManager;
-import com.artemis.the.gr8.playerstats.core.commands.*;
-import com.artemis.the.gr8.playerstats.core.msg.msgutils.NumberFormatter;
-import com.artemis.the.gr8.playerstats.core.multithreading.ThreadManager;
-import com.artemis.the.gr8.playerstats.core.msg.OutputManager;
-import com.artemis.the.gr8.playerstats.core.config.ConfigHandler;
-import com.artemis.the.gr8.playerstats.core.listeners.JoinListener;
-import com.artemis.the.gr8.playerstats.core.msg.msgutils.LanguageKeyHandler;
-import com.artemis.the.gr8.playerstats.core.sharing.ShareManager;
-import com.artemis.the.gr8.playerstats.core.statistic.StatRequestManager;
-import com.artemis.the.gr8.playerstats.core.utils.Closable;
-import com.artemis.the.gr8.playerstats.core.utils.OfflinePlayerHandler;
-import com.artemis.the.gr8.playerstats.core.utils.Reloadable;
-import me.clip.placeholderapi.PlaceholderAPIPlugin;
-import me.clip.placeholderapi.expansion.PlaceholderExpansion;
+import java.util.ArrayList;
+import java.util.List;
+
 import org.bstats.bukkit.Metrics;
-import org.bstats.charts.SimplePie;
 import org.bukkit.Bukkit;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -27,8 +11,32 @@ import org.bukkit.scheduler.BukkitRunnable;
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.ArrayList;
-import java.util.List;
+import com.artemis.the.gr8.playerstats.api.PlayerStats;
+import com.artemis.the.gr8.playerstats.api.StatManager;
+import com.artemis.the.gr8.playerstats.api.StatNumberFormatter;
+import com.artemis.the.gr8.playerstats.api.StatTextFormatter;
+import com.artemis.the.gr8.playerstats.core.commands.ExcludeCommand;
+import com.artemis.the.gr8.playerstats.core.commands.ReloadCommand;
+import com.artemis.the.gr8.playerstats.core.commands.ShareCommand;
+import com.artemis.the.gr8.playerstats.core.commands.StatAdminCommand;
+import com.artemis.the.gr8.playerstats.core.commands.StatCommand;
+import com.artemis.the.gr8.playerstats.core.commands.TabCompleter;
+import com.artemis.the.gr8.playerstats.core.commands.TopCommand;
+import com.artemis.the.gr8.playerstats.core.config.ConfigHandler;
+import com.artemis.the.gr8.playerstats.core.listeners.JoinListener;
+import com.artemis.the.gr8.playerstats.core.listeners.SilkTouchListener;
+import com.artemis.the.gr8.playerstats.core.msg.OutputManager;
+import com.artemis.the.gr8.playerstats.core.msg.msgutils.LanguageKeyHandler;
+import com.artemis.the.gr8.playerstats.core.msg.msgutils.NumberFormatter;
+import com.artemis.the.gr8.playerstats.core.multithreading.ThreadManager;
+import com.artemis.the.gr8.playerstats.core.sharing.ShareManager;
+import com.artemis.the.gr8.playerstats.core.statistic.StatRequestManager;
+import com.artemis.the.gr8.playerstats.core.utils.Closable;
+import com.artemis.the.gr8.playerstats.core.utils.OfflinePlayerHandler;
+import com.artemis.the.gr8.playerstats.core.utils.Reloadable;
+
+import me.clip.placeholderapi.PlaceholderAPIPlugin;
+import me.clip.placeholderapi.expansion.PlaceholderExpansion;
 
 /**
  * PlayerStats' Main class
@@ -56,7 +64,8 @@ public final class Main extends JavaPlugin implements PlayerStats {
 
         //register the listener
         Bukkit.getPluginManager().registerEvents(new JoinListener(threadManager), this);
-        
+        Bukkit.getPluginManager().registerEvents(new SilkTouchListener(), this);
+
         //finish up
         this.getLogger().info("Enabled PlayerStats!");
     }
@@ -86,14 +95,16 @@ public final class Main extends JavaPlugin implements PlayerStats {
      * @return the JavaPlugin instance associated with PlayerStats
      * @throws IllegalStateException if PlayerStats is not enabled
      */
-    public static @NotNull JavaPlugin getPluginInstance() throws IllegalStateException {
+    public static @NotNull
+    JavaPlugin getPluginInstance() throws IllegalStateException {
         if (pluginInstance == null) {
             throw new IllegalStateException("PlayerStats is not loaded!");
         }
         return pluginInstance;
     }
 
-    public static @NotNull PlayerStats getPlayerStatsAPI() throws IllegalStateException {
+    public static @NotNull
+    PlayerStats getPlayerStatsAPI() throws IllegalStateException {
         if (playerStatsAPI == null) {
             throw new IllegalStateException("PlayerStats does not seem to be loaded!");
         }
@@ -101,9 +112,8 @@ public final class Main extends JavaPlugin implements PlayerStats {
     }
 
     /**
-     * Initialize all classes that need initializing,
-     * and store references to classes that are
-     * needed for the Command classes or the API.
+     * Initialize all classes that need initializing, and store references to
+     * classes that are needed for the Command classes or the API.
      */
     private void initializeMainClassesInOrder() {
         pluginInstance = this;
@@ -120,11 +130,12 @@ public final class Main extends JavaPlugin implements PlayerStats {
     }
 
     /**
-     * Register all commands and assign the tabCompleter
-     * to the relevant commands.
+     * Register all commands and assign the tabCompleter to the relevant
+     * commands.
      */
     private void registerCommands() {
         TabCompleter tabCompleter = new TabCompleter();
+        StatAdminCommand statAdminCommand = new StatAdminCommand();
 
         PluginCommand statcmd = this.getCommand("statistic");
         if (statcmd != null) {
@@ -144,6 +155,17 @@ public final class Main extends JavaPlugin implements PlayerStats {
         PluginCommand sharecmd = this.getCommand("statisticshare");
         if (sharecmd != null) {
             sharecmd.setExecutor(new ShareCommand());
+        }
+
+        PluginCommand topcmd = this.getCommand("top");
+        if (topcmd != null) {
+            topcmd.setExecutor(new TopCommand(threadManager));
+            topcmd.setTabCompleter(tabCompleter);
+        }
+        PluginCommand admincmd = this.getCommand("statadmin");
+        if (admincmd != null) {
+            admincmd.setExecutor(statAdminCommand);
+            admincmd.setTabCompleter(statAdminCommand);
         }
     }
 
@@ -165,13 +187,14 @@ public final class Main extends JavaPlugin implements PlayerStats {
                 } else {
                     placeholderExpansionActive = false;
                 }
-                metrics.addCustomChart(new SimplePie("using_placeholder_expansion", () -> placeholderExpansionActive ? "yes" : "no"));
+                // metrics.addCustomChart(new SimplePie("using_placeholder_expansion", () -> placeholderExpansionActive ? "yes" : "no")); // Removed due to compilation error
             }
         }.runTaskLaterAsynchronously(this, 200);
     }
 
     @Override
-    public @NotNull String getVersion() {
+    public @NotNull
+    String getVersion() {
         return String.valueOf(this.getDescription().getVersion().charAt(0));
     }
 
@@ -187,7 +210,8 @@ public final class Main extends JavaPlugin implements PlayerStats {
 
     @Contract(" -> new")
     @Override
-    public @NotNull StatNumberFormatter getStatNumberFormatter() {
+    public @NotNull
+    StatNumberFormatter getStatNumberFormatter() {
         return new NumberFormatter();
     }
 }

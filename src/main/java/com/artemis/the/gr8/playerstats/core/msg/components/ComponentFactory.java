@@ -1,12 +1,21 @@
 package com.artemis.the.gr8.playerstats.core.msg.components;
 
-import com.artemis.the.gr8.playerstats.core.config.ConfigHandler;
-import com.artemis.the.gr8.playerstats.core.enums.PluginColor;
+import org.bukkit.Bukkit;
+import org.jetbrains.annotations.Contract;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
 import com.artemis.the.gr8.playerstats.api.enums.Target;
 import com.artemis.the.gr8.playerstats.api.enums.Unit;
-import com.artemis.the.gr8.playerstats.core.msg.msgutils.LanguageKeyHandler;
+import com.artemis.the.gr8.playerstats.core.config.ConfigHandler;
+import com.artemis.the.gr8.playerstats.core.enums.PluginColor;
 import com.artemis.the.gr8.playerstats.core.msg.MessageBuilder;
+import com.artemis.the.gr8.playerstats.core.msg.msgutils.LanguageKeyHandler;
+
 import net.kyori.adventure.text.Component;
+import static net.kyori.adventure.text.Component.space;
+import static net.kyori.adventure.text.Component.text;
+import static net.kyori.adventure.text.Component.translatable;
 import net.kyori.adventure.text.TextComponent;
 import net.kyori.adventure.text.TranslatableComponent;
 import net.kyori.adventure.text.event.ClickEvent;
@@ -17,17 +26,11 @@ import net.kyori.adventure.text.format.TextDecoration;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.util.HSVLike;
 import net.kyori.adventure.util.Index;
-import org.bukkit.Bukkit;
-import org.jetbrains.annotations.Contract;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
-import static net.kyori.adventure.text.Component.*;
-
-/** Creates Components with the desired formatting for the
- * {@link MessageBuilder} to build messages with. This class
- * can put Strings into formatted Components with TextColor
- * and TextDecoration, or return empty Components with the
+/**
+ * Creates Components with the desired formatting for the {@link MessageBuilder}
+ * to build messages with. This class can put Strings into formatted Components
+ * with TextColor and TextDecoration, or return empty Components with the
  * desired formatting (as specified by the {@link ConfigHandler}).
  *
  * @see PluginColor
@@ -51,7 +54,6 @@ public class ComponentFactory {
 
     protected TextColor MSG_HOVER;  //lightest_blue
     protected TextColor MSG_CLICKED;  //light_purple
-
 
     public ComponentFactory() {
         config = ConfigHandler.getInstance();
@@ -77,7 +79,8 @@ public class ComponentFactory {
     }
 
     @Contract("_ -> new")
-    protected @NotNull TextComponent miniMessageToComponent(String input) {
+    protected @NotNull
+    TextComponent miniMessageToComponent(String input) {
         return text()
                 .append(MiniMessage.miniMessage().deserialize(input))
                 .build();
@@ -95,34 +98,27 @@ public class ComponentFactory {
      * Returns [PlayerStats].
      */
     public TextComponent pluginPrefix() {
-        return text("[")
-                .color(BRACKETS)
-                .append(text("PlayerStats").color(PREFIX))
-                .append(text("]"));
+        return Component.empty();
     }
 
     /**
      * Returns [PlayerStats] surrounded by underscores on both sides.
      */
     public TextComponent pluginPrefixAsTitle() {
-        return text("____________").color(UNDERSCORE)  //12 underscores
-                .append(text("    "))  //4 spaces
-                .append(pluginPrefix())
-                .append(text("    "))
-                .append(text("____________"));
+        return Component.empty();
     }
 
     /**
-     * Returns a TextComponent with the input String as content,
-     * with color Gray and decoration Italic.
+     * Returns a TextComponent with the input String as content, with color Gray
+     * and decoration Italic.
      */
     public TextComponent subTitle(String content) {
         return text(content).color(BRACKETS).decorate(TextDecoration.ITALIC);
     }
 
     /**
-     * Returns a TextComponents in the style of a default plugin message,
-     * with color Medium_Blue.
+     * Returns a TextComponents in the style of a default plugin message, with
+     * color Medium_Blue.
      */
     public TextComponent message() {
         return text().color(FEEDBACK_MSG).build();
@@ -192,9 +188,9 @@ public class ComponentFactory {
     public TextComponent sharedByMessage(Component playerName) {
         return surroundWithBrackets(
                 text().append(
-                                getComponent("Shared by",
-                                        getColorFromString(config.getSharedByTextDecoration(false)),
-                                        getStyleFromString(config.getSharedByTextDecoration(true))))
+                        getComponent("Shared by",
+                                getColorFromString(config.getSharedByTextDecoration(false)),
+                                getStyleFromString(config.getSharedByTextDecoration(true))))
                         .append(space())
                         .append(playerName)
                         .build());
@@ -203,35 +199,36 @@ public class ComponentFactory {
     public TextComponent statResultInHoverText(TextComponent statResult) {
         return surroundWithBrackets(
                 text().append(text("Hover Here")
-                                .color(MSG_CLICKED)
-                                .decorate(TextDecoration.ITALIC)
-                                .hoverEvent(HoverEvent.showText(statResult)))
+                        .color(MSG_CLICKED)
+                        .decorate(TextDecoration.ITALIC)
+                        .hoverEvent(HoverEvent.showText(statResult)))
                         .build());
     }
 
     /**
-     * @param prettyStatName a statName with underscores removed and each
-     *                       word capitalized
+     * @param prettyStatName a statName with underscores removed and each word
+     * capitalized
      * @param prettySubStatName if present, a subStatName with underscores
-     *                          removed and each word capitalized
+     * removed and each word capitalized
      */
     public TextComponent statAndSubStatName(String prettyStatName, @Nullable String prettySubStatName, Target target) {
-        TextComponent.Builder totalStatNameBuilder =  getComponentBuilder(prettyStatName,
+        TextComponent.Builder totalStatNameBuilder = getComponentBuilder(prettyStatName,
                 getColorFromString(config.getStatNameDecoration(target, false)),
                 getStyleFromString(config.getStatNameDecoration(target, true)));
         TextComponent subStat = subStatName(prettySubStatName, target);
 
         if (!subStat.equals(Component.empty())) {
-                totalStatNameBuilder
-                        .append(space().decorations(TextDecoration.NAMES.values(), false))
-                        .append(subStatName(prettySubStatName, target));
+            totalStatNameBuilder
+                    .append(space().decorations(TextDecoration.NAMES.values(), false))
+                    .append(subStatName(prettySubStatName, target));
         }
         return totalStatNameBuilder.build();
     }
 
     /**
      * Returns a TextComponent with TranslatableComponent as a child.
-     * */
+     *
+     */
     public TextComponent statAndSubStatNameTranslatable(String statKey, @Nullable String subStatKey, Target target) {
         TextComponent.Builder totalStatNameBuilder = getComponentBuilder(null,
                 getColorFromString(config.getStatNameDecoration(target, false)),
@@ -240,11 +237,9 @@ public class ComponentFactory {
         TextComponent subStat = subStatNameTranslatable(subStatKey, target);
         if (LanguageKeyHandler.isNormalKeyForKillEntity(statKey)) {
             return totalStatNameBuilder.append(killEntityBuilder(subStat)).build();
-        }
-        else if (LanguageKeyHandler.isNormalKeyForEntityKilledBy(statKey)) {
+        } else if (LanguageKeyHandler.isNormalKeyForEntityKilledBy(statKey)) {
             return totalStatNameBuilder.append(entityKilledByBuilder(subStat)).build();
-        }
-        else {
+        } else {
             totalStatNameBuilder.append(translatable().key(statKey));
             if (!subStat.equals(Component.empty())) {
                 totalStatNameBuilder.append(
@@ -362,7 +357,8 @@ public class ComponentFactory {
     }
 
     /**
-     * Returns a TranslatableComponent for the subStatName, or an empty component.
+     * Returns a TranslatableComponent for the subStatName, or an empty
+     * component.
      */
     private TextComponent subStatNameTranslatable(@Nullable String subStatKey, Target target) {
         if (subStatKey != null) {
@@ -379,14 +375,16 @@ public class ComponentFactory {
     }
 
     /**
-     * Construct a custom translation for kill_entity with the language key
-     * for commands.kill.success.single ("Killed %s").
+     * Construct a custom translation for kill_entity with the language key for
+     * commands.kill.success.single ("Killed %s").
      *
-     * @return a TranslatableComponent Builder with the subStat Component as args.
+     * @return a TranslatableComponent Builder with the subStat Component as
+     * args.
      */
-    private @NotNull TranslatableComponent.Builder killEntityBuilder(@NotNull TextComponent subStat) {
+    private @NotNull
+    TranslatableComponent.Builder killEntityBuilder(@NotNull TextComponent subStat) {
         return translatable()
-                .key(LanguageKeyHandler.getCustomKeyForKillEntity())  //"Killed %s"
+                .key(LanguageKeyHandler.getCustomKeyForKillEntity()) //"Killed %s"
                 .args(subStat);
     }
 
@@ -395,22 +393,25 @@ public class ComponentFactory {
      * keys for stat.minecraft.deaths ("Number of Deaths") and book.byAuthor
      * ("by %s").
      *
-     * @return a TranslatableComponent Builder with stat.minecraft.deaths as key,
-     * with a ChildComponent with book.byAuthor as key and the subStat Component as args.
+     * @return a TranslatableComponent Builder with stat.minecraft.deaths as
+     * key, with a ChildComponent with book.byAuthor as key and the subStat
+     * Component as args.
      */
-    private @NotNull TranslatableComponent.Builder entityKilledByBuilder(@NotNull TextComponent subStat) {
+    private @NotNull
+    TranslatableComponent.Builder entityKilledByBuilder(@NotNull TextComponent subStat) {
         return translatable()
-                .key(LanguageKeyHandler.getCustomKeyForEntityKilledBy())  //"Number of Deaths"
+                .key(LanguageKeyHandler.getCustomKeyForEntityKilledBy()) //"Number of Deaths"
                 .append(space())
                 .append(translatable()
                         .key(LanguageKeyHandler.getCustomKeyForEntityKilledByArg()) //"by %s"
                         .args(subStat));
     }
 
-    private @NotNull TextComponent statNumberWithHoverText(String mainNumber, String hoverNumber,
-                                                           @Nullable String hoverUnitName,
-                                                           @Nullable String hoverUnitKey,
-                                                           @Nullable TextComponent heartComponent, Target target) {
+    private @NotNull
+    TextComponent statNumberWithHoverText(String mainNumber, String hoverNumber,
+            @Nullable String hoverUnitName,
+            @Nullable String hoverUnitKey,
+            @Nullable TextComponent heartComponent, Target target) {
 
         TextColor baseColor = getColorFromString(config.getStatNumberDecoration(target, false));
         TextDecoration style = getStyleFromString(config.getStatNumberDecoration(target, true));
@@ -419,19 +420,18 @@ public class ComponentFactory {
         if (heartComponent != null) {
             hoverText.append(space())
                     .append(heartComponent);
-        }
-        else if (hoverUnitKey != null) {
+        } else if (hoverUnitKey != null) {
             hoverText.append(space())
                     .append(translatable().key(hoverUnitKey));
-        }
-        else if (hoverUnitName != null) {
+        } else if (hoverUnitName != null) {
             hoverText.append(space())
                     .append(text(hoverUnitName));
         }
         return getComponent(mainNumber, baseColor, style).hoverEvent(HoverEvent.showText(hoverText));
     }
 
-    private @NotNull TextComponent surroundWithBrackets(TextComponent component) {
+    private @NotNull
+    TextComponent surroundWithBrackets(TextComponent component) {
         return getComponent(null, BRACKETS, null)
                 .append(text("["))
                 .append(component)
@@ -460,12 +460,10 @@ public class ComponentFactory {
             try {
                 if (configString.contains("#")) {
                     return getHexColor(configString);
-                }
-                else {
+                } else {
                     return getTextColorByName(configString);
                 }
-            }
-            catch (IllegalArgumentException | NullPointerException exception) {
+            } catch (IllegalArgumentException | NullPointerException exception) {
                 Bukkit.getLogger().warning(exception.toString());
             }
         }
@@ -481,23 +479,30 @@ public class ComponentFactory {
         return names.value(textColor);
     }
 
-    private @NotNull TextColor getLighterColor(@NotNull TextColor color) {
+    private @NotNull
+    TextColor getLighterColor(@NotNull TextColor color) {
         float multiplier = (float) ((100 - config.getHoverTextAmountLighter()) / 100.0);
         HSVLike oldColor = HSVLike.fromRGB(color.red(), color.green(), color.blue());
         HSVLike newColor = HSVLike.hsvLike(oldColor.h(), oldColor.s() * multiplier, oldColor.v());
         return TextColor.color(newColor);
     }
 
-    private @Nullable TextDecoration getStyleFromString(@NotNull String configString) {
+    private @Nullable
+    TextDecoration getStyleFromString(@NotNull String configString) {
         if (configString.equalsIgnoreCase("none")) {
             return null;
-        }
-        else if (configString.equalsIgnoreCase("magic")) {
+        } else if (configString.equalsIgnoreCase("magic")) {
             return TextDecoration.OBFUSCATED;
-        }
-        else {
+        } else {
             Index<String, TextDecoration> styles = TextDecoration.NAMES;
             return styles.value(configString);
         }
+    }
+
+    /**
+     * A simple separator component.
+     */
+    public TextComponent separator(TextColor color, String content) {
+        return text(content).color(color);
     }
 }

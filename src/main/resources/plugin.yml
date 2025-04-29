@@ -1,7 +1,7 @@
 main: com.artemis.the.gr8.playerstats.core.Main
 name: PlayerStats
 version: 2.3
-api-version: 1.13
+api-version: 1.21
 description: adds commands to view player statistics in chat
 author: Artemis_the_gr8
 softdepend:
@@ -36,6 +36,14 @@ commands:
     description: hide this player's statistics from /stat results
     usage: "§6/statexclude info"
     permission: playerstats.exclude
+  top:
+    description: Show top player statistics for approved stats
+    usage: "§6/top <statistic_alias>"
+    permission: playerstats.top
+  statadmin:
+    description: Manage PlayerStats approved statistics
+    usage: "§6/statadmin <addapproved|removeapproved|listapproved> [options]"
+    permission: playerstats.admin
 permissions:
   playerstats.stat:
     description: allows usage of /statistic
@@ -48,4 +56,10 @@ permissions:
     default: op
   playerstats.reload:
     description: allows usage of /statreload
+    default: op
+  playerstats.top:
+    description: allows usage of /top
+    default: true
+  playerstats.admin:
+    description: allows usage of /statadmin
     default: op

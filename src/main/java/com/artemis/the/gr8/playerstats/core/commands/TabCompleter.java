@@ -1,17 +1,20 @@
 package com.artemis.the.gr8.playerstats.core.commands;
 
-import com.artemis.the.gr8.playerstats.core.utils.EnumHandler;
-import com.artemis.the.gr8.playerstats.core.utils.OfflinePlayerHandler;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
+import java.util.stream.Collectors;
+
 import org.bukkit.Statistic;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Locale;
-import java.util.stream.Collectors;
+import com.artemis.the.gr8.playerstats.core.config.ConfigHandler;
+import com.artemis.the.gr8.playerstats.core.utils.EnumHandler;
+import com.artemis.the.gr8.playerstats.core.utils.OfflinePlayerHandler;
 
 public final class TabCompleter implements org.bukkit.command.TabCompleter {
 
@@ -28,17 +31,35 @@ public final class TabCompleter implements org.bukkit.command.TabCompleter {
     }
 
     @Override
-    public @Nullable List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
-        if (command.getName().equalsIgnoreCase("statistic")) {
-            return getStatCommandSuggestions(args);
+    public @Nullable
+    List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
+        String cmdName = command.getName().toLowerCase(Locale.ENGLISH);
+
+        return switch (cmdName) {
+            case "statistic" ->
+                getStatCommandSuggestions(args);
+            case "statisticexclude" ->
+                getExcludeCommandSuggestions(args);
+            case "top" ->
+                getTopCommandSuggestions(args);
+            default ->
+                null;
+        };
+    }
+
+    private @Nullable
+    List<String> getTopCommandSuggestions(@NotNull String[] args) {
+        if (args.length == 1) {
+            // Suggest approved stat aliases for the first argument
+            Set<String> approvedAliases = ConfigHandler.getInstance().getApprovedAliases();
+            return getDynamicTabSuggestions(new ArrayList<>(approvedAliases), args[0]);
         }
-        else if (command.getName().equalsIgnoreCase("statisticexclude")) {
-            return getExcludeCommandSuggestions(args);
-        }
+        // No suggestions for subsequent arguments for /top
         return null;
     }
 
-    private @Nullable List<String> getExcludeCommandSuggestions(@NotNull String[] args) {
+    private @Nullable
+    List<String> getExcludeCommandSuggestions(@NotNull String[] args) {
         if (args.length == 0) {
             return null;
         }
@@ -46,18 +67,21 @@ public final class TabCompleter implements org.bukkit.command.TabCompleter {
         List<String> tabSuggestions = new ArrayList<>();
         if (args.length == 1) {
             tabSuggestions = excludeCommandOptions;
-        }
-        else if (args.length == 2) {
+        } else if (args.length == 2) {
             tabSuggestions = switch (args[0]) {
-                case "add" -> offlinePlayerHandler.getIncludedOfflinePlayerNames();
-                case "remove" -> offlinePlayerHandler.getExcludedPlayerNames();
-                default -> tabSuggestions;
+                case "add" ->
+                    offlinePlayerHandler.getIncludedOfflinePlayerNames();
+                case "remove" ->
+                    offlinePlayerHandler.getExcludedPlayerNames();
+                default ->
+                    tabSuggestions;
             };
         }
-        return getDynamicTabSuggestions(tabSuggestions, args[args.length-1]);
+        return getDynamicTabSuggestions(tabSuggestions, args[args.length - 1]);
     }
 
-    private @Nullable List<String> getStatCommandSuggestions(@NotNull String[] args) {
+    private @Nullable
+    List<String> getStatCommandSuggestions(@NotNull String[] args) {
         if (args.length == 0) {
             return null;
         }
@@ -65,9 +89,8 @@ public final class TabCompleter implements org.bukkit.command.TabCompleter {
         List<String> tabSuggestions = new ArrayList<>();
         if (args.length == 1) {
             tabSuggestions = firstStatCommandArgSuggestions();
-        }
-        else {
-            String previousArg = args[args.length-2];
+        } else {
+            String previousArg = args[args.length - 2];
 
             //after checking if args[0] is a viable statistic, suggest sub-stat or targets
             if (enumHandler.isStatistic(previousArg)) {
@@ -75,28 +98,24 @@ public final class TabCompleter implements org.bukkit.command.TabCompleter {
                 if (stat != null) {
                     tabSuggestions = suggestionsAfterFirstStatCommandArg(stat);
                 }
-            }
-            else if (previousArg.equalsIgnoreCase("player")) {
-                if (args.length >= 3 && enumHandler.isEntityStatistic(args[args.length-3])) {
+            } else if (previousArg.equalsIgnoreCase("player")) {
+                if (args.length >= 3 && enumHandler.isEntityStatistic(args[args.length - 3])) {
                     tabSuggestions = statCommandTargets;  //if arg before "player" was entity-sub-stat, suggest targets
-                }
-                else {  //otherwise "player" is the target: suggest playerNames
+                } else {  //otherwise "player" is the target: suggest playerNames
                     tabSuggestions = offlinePlayerHandler.getIncludedOfflinePlayerNames();
                 }
-            }
-
-            //after a substatistic, suggest targets
+            } //after a substatistic, suggest targets
             else if (enumHandler.isSubStatEntry(previousArg)) {
                 tabSuggestions = statCommandTargets;
             }
         }
-        return getDynamicTabSuggestions(tabSuggestions, args[args.length-1]);
+        return getDynamicTabSuggestions(tabSuggestions, args[args.length - 1]);
     }
 
     /**
-     * These tabSuggestions take into account that the commandSender
-     * will have been typing, so they are filtered for the letters
-     * that have already been typed.
+     * These tabSuggestions take into account that the commandSender will have
+     * been typing, so they are filtered for the letters that have already been
+     * typed.
      */
     private List<String> getDynamicTabSuggestions(@NotNull List<String> completeList, String currentArg) {
         return completeList.stream()
@@ -104,7 +123,8 @@ public final class TabCompleter implements org.bukkit.command.TabCompleter {
                 .collect(Collectors.toList());
     }
 
-    private @NotNull List<String> firstStatCommandArgSuggestions() {
+    private @NotNull
+    List<String> firstStatCommandArgSuggestions() {
         List<String> suggestions = enumHandler.getAllStatNames();
         suggestions.add("examples");
         suggestions.add("info");

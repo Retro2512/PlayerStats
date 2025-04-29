@@ -1,11 +1,5 @@
 package com.artemis.the.gr8.playerstats.core.utils;
 
-import org.bukkit.Material;
-import org.bukkit.Statistic;
-import org.bukkit.entity.EntityType;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
-
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -13,12 +7,18 @@ import java.util.Locale;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import org.bukkit.Material;
+import org.bukkit.Statistic;
+import org.bukkit.entity.EntityType;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
 /**
  * This class deals with Bukkit Enumerators. It holds private lists of all
  * block-, item-, entity- and statistic-names, and has one big list of all
- * possible sub-statistic-entries (block/item/entity). It can give the names
- * of all aforementioned enums, check if something is a valid enum constant,
- * and turn a name into its corresponding enum constant.
+ * possible sub-statistic-entries (block/item/entity). It can give the names of
+ * all aforementioned enums, check if something is a valid enum constant, and
+ * turn a name into its corresponding enum constant.
  */
 public final class EnumHandler {
 
@@ -88,32 +88,54 @@ public final class EnumHandler {
         return statNames;
     }
 
+    // Added methods for tab completion in StatAdminCommand
+    public List<String> getStatNames() { // Renamed from getAllStatNames for clarity/consistency
+        return statNames;
+    }
+
+    public List<String> getBlockNames() { // Renamed from getAllBlockNames
+        return blockNames;
+    }
+
+    public List<String> getItemNames() { // Renamed from getAllItemNames
+        return itemNames;
+    }
+
+    public List<String> getEntityNames() { // Renamed from getAllEntityNames
+        return entityNames;
+    }
+
     /**
      * Returns the corresponding Material enum constant for an itemName.
      *
      * @param itemName String (case-insensitive)
-     * @return Material enum constant (uppercase), or null if none
-     * can be found
+     * @return Material enum constant (uppercase), or null if none can be found
      */
-    public @Nullable Material getItemEnum(String itemName) {
-        if (itemName == null) return null;
-
-        Material item = Material.matchMaterial(itemName);
-        return (item != null && item.isItem()) ? item : null;
+    public @Nullable
+    Material getItemEnum(String itemName) {
+        if (itemName == null) {
+            return null;
+        }
+        try {
+            Material item = Material.valueOf(itemName.toUpperCase(Locale.ENGLISH));
+            return item.isItem() ? item : null;
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 
     /**
      * Returns the corresponding EntityType enum constant for an entityName.
      *
      * @param entityName String (case-insensitive)
-     * @return EntityType enum constant (uppercase), or null if none
-     * can be found
+     * @return EntityType enum constant (uppercase), or null if none can be
+     * found
      */
-    public @Nullable EntityType getEntityEnum(String entityName) {
+    public @Nullable
+    EntityType getEntityEnum(String entityName) {
         try {
             return EntityType.valueOf(entityName.toUpperCase(Locale.ENGLISH));
-        }
-        catch (IllegalArgumentException | NullPointerException e) {
+        } catch (IllegalArgumentException | NullPointerException e) {
             return null;
         }
     }
@@ -122,14 +144,21 @@ public final class EnumHandler {
      * Returns the corresponding Material enum constant for a materialName.
      *
      * @param materialName String (case-insensitive)
-     * @return Material enum constant (uppercase), or null if none
-     * can be found
+     * @return Material enum constant (uppercase), or null if none can be found
      */
-    public @Nullable Material getBlockEnum(String materialName) {
-        if (materialName == null) return null;
-
-        Material block = Material.matchMaterial(materialName);
-        return (block != null && block.isBlock()) ? block : null;
+    public @Nullable
+    Material getBlockEnum(String materialName) {
+        if (materialName == null) {
+            return null;
+        }
+        try {
+            Material block = Material.valueOf(materialName.toUpperCase(Locale.ENGLISH));
+            MyLogger.logLowLevelMsg("[Debug EnumHandler] Checking getBlockEnum for: '" + materialName.toUpperCase() + "'. Material found: " + (block != null) + ". IsBlock: " + (block != null ? block.isBlock() : "N/A"));
+            return block.isBlock() ? block : null;
+        } catch (IllegalArgumentException e) {
+            MyLogger.logLowLevelMsg("[Debug EnumHandler] Checking getBlockEnum for: '" + materialName.toUpperCase() + "'. Material.valueOf failed!");
+            return null;
+        }
     }
 
     /**
@@ -138,11 +167,11 @@ public final class EnumHandler {
      * @param statName String (case-insensitive)
      * @return the Statistic enum constant, or null
      */
-    public @Nullable Statistic getStatEnum(@NotNull String statName)  {
+    public @Nullable
+    Statistic getStatEnum(@NotNull String statName) {
         try {
             return Statistic.valueOf(statName.toUpperCase(Locale.ENGLISH));
-        }
-        catch (IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             return null;
         }
     }
@@ -158,24 +187,23 @@ public final class EnumHandler {
     }
 
     /**
-     * Checks whether the given String equals the name of a
-     * {@link Statistic} of Type.Entity.
+     * Checks whether the given String equals the name of a {@link Statistic} of
+     * Type.Entity.
      *
      * @param statName the String to check (case-insensitive)
      * @return true if this String is a Statistic of Type.Entity
      */
     public boolean isEntityStatistic(@NotNull String statName) {
-        return statName.equalsIgnoreCase(Statistic.ENTITY_KILLED_BY.toString()) ||
-                statName.equalsIgnoreCase(Statistic.KILL_ENTITY.toString());
+        return statName.equalsIgnoreCase(Statistic.ENTITY_KILLED_BY.toString())
+                || statName.equalsIgnoreCase(Statistic.KILL_ENTITY.toString());
     }
 
     /**
-     * Checks if this statistic is a subStatEntry, meaning it is a block,
-     * item or entity.
+     * Checks if this statistic is a subStatEntry, meaning it is a block, item
+     * or entity.
      *
      * @param statName the String to check (case-insensitive)
-     * @return true if this String is a Statistic that is not
-     * of Type.Untyped
+     * @return true if this String is a Statistic that is not of Type.Untyped
      */
     public boolean isSubStatEntry(@NotNull String statName) {
         return subStatNames.contains(statName.toLowerCase(Locale.ENGLISH));
@@ -185,16 +213,21 @@ public final class EnumHandler {
      * Gets the name of the given Statistic.Type
      *
      * @param statType the Type of the Statistic to check
-     * @return "block", "entity", "item", or "sub-statistic" if the
-     * provided Type is null.
+     * @return "block", "entity", "item", or "sub-statistic" if the provided
+     * Type is null.
      */
     public String getSubStatTypeName(Statistic.Type statType) {
         String subStat = "sub-statistic";
-        if (statType == null) return subStat;
+        if (statType == null) {
+            return subStat;
+        }
         switch (statType) {
-            case BLOCK -> subStat = "block";
-            case ENTITY -> subStat = "entity";
-            case ITEM -> subStat = "item";
+            case BLOCK ->
+                subStat = "block";
+            case ENTITY ->
+                subStat = "entity";
+            case ITEM ->
+                subStat = "item";
         }
         return subStat;
     }

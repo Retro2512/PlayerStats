@@ -195,3 +195,66 @@ total-server:
 
   stat-numbers: '#ADE7FF'
   stat-numbers-style: none
+
+
+#                                # ------------------------------- #                                     #
+#                                #      Approved Stats (/top)      #                                     #
+#                                # ------------------------------- #                                     #
+
+# Define statistics accessible via the /top command.
+# Each entry needs an alias (used in the command, e.g., /top times_jumped),
+# a user-friendly display-name, the official Bukkit Statistic name, and the Statistic.Type.
+# For types BLOCK, ITEM, or ENTITY, you can optionally add a sub-statistic (Material or EntityType name).
+# If no sub-statistic is provided for these types, it implies a total count for that type (e.g., all blocks mined).
+# Note: aliases should be lowercase and use underscores (e.g., my_cool_stat).
+approved-stats:
+  times_jumped:
+    display-name: "Times Jumped"
+    statistic: JUMP
+    type: UNTYPED
+    # sub-statistic: null (or omit)
+  play_time:
+    display-name: "Play Time"
+    statistic: PLAY_ONE_MINUTE  # Note: This is in ticks, plugin needs to format it
+    type: UNTYPED
+  player_kills:
+    display-name: "Player Kills"
+    statistic: PLAYER_KILLS
+    type: UNTYPED
+  mob_kills:
+    display-name: "Mob Kills"
+    statistic: MOB_KILLS
+    type: UNTYPED
+  deaths:
+    display-name: "Deaths"
+    statistic: DEATHS
+    type: UNTYPED
+  blocks_mined:
+    display-name: "Blocks Mined (Total)"
+    statistic: MINE_BLOCK
+    type: BLOCK
+    # No sub-statistic = total for this type
+  blocks_placed:
+    display-name: "Blocks Placed (Total)"
+    statistic: USE_ITEM # Using USE_ITEM is common for block placement tracking
+    type: ITEM
+    # No sub-statistic = total for this type (requires filtering logic in command/processor)
+  damage_dealt:
+    display-name: "Damage Dealt"
+    statistic: DAMAGE_DEALT
+    type: UNTYPED
+  damage_taken:
+    display-name: "Damage Taken"
+    statistic: DAMAGE_TAKEN
+    type: UNTYPED
+  # Example with sub-statistic:
+  # stone_mined:
+  #   display-name: "Stone Mined"
+  #   statistic: MINE_BLOCK
+  #   type: BLOCK
+  #   sub-statistic: STONE
+  # zombies_killed:
+  #   display-name: "Zombies Killed"
+  #   statistic: KILL_ENTITY
+  #   type: ENTITY
+  #   sub-statistic: ZOMBIE
