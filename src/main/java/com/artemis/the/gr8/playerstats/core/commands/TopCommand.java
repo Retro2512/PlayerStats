@@ -423,7 +423,8 @@ public final class TopCommand implements CommandExecutor {
             MyLogger.logWarning("ApprovedStat alias '" + alias + "' not defined in approved-stats.yml, creating dynamic fallback.");
             // Fallback dynamic creation
             StatComponent component = new StatComponent(Statistic.MINE_BLOCK);
-            approvedStat = new ApprovedStat(alias, "Blocks Mined (Total)", List.of(component));
+            // Mark as total request explicitly
+            approvedStat = new ApprovedStat(alias, "Blocks Mined (Total)", component, true);
         }
         String displayName = approvedStat.displayName();
 
@@ -482,7 +483,8 @@ public final class TopCommand implements CommandExecutor {
                 MyLogger.logWarning("ApprovedStat alias '" + requiredAlias + "' not defined in approved-stats.yml, creating dynamic fallback.");
                 // Fallback dynamic creation for total items crafted
                 StatComponent component = new StatComponent(Statistic.CRAFT_ITEM);
-                approvedStat = new ApprovedStat(requiredAlias, "Items Crafted (Total)", List.of(component));
+                // Mark as total request explicitly
+                approvedStat = new ApprovedStat(requiredAlias, "Items Crafted (Total)", component, true);
             }
             displayName = approvedStat.displayName(); // Use display name from config
         }
